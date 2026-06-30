@@ -1,0 +1,51 @@
+# ==========================================================================
+# .gitignore — Desafio Análise de Dados | Sefaz Maceió
+# ==========================================================================
+
+# --- Arquivos locais de ferramentas / assistentes -------------------------
+.assistant/
+*.local.md
+.mcp.json
+
+# --- Arquivos sensíveis / segredos ----------------------------------------
+.env
+.env.*
+*.key
+*.pem
+*.p12
+credentials*
+secrets*
+*.local
+
+# --- Python ---------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.python-version
+.ipynb_checkpoints/
+
+# --- Editores / IDEs ------------------------------------------------------
+.vscode/
+.idea/
+*.swp
+
+# --- Sistema operacional --------------------------------------------------
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ==========================================================================
+# IMPORTANTE: a pasta dados_compactos/ NÃO deve ser ignorada — os arquivos
+# .zip precisam estar no repositório (o Passo 1 do desafio é descompactá-los
+# por código).
+#
+# Sobre as SAÍDAS do seu trabalho (dados extraídos, Parquet, gráficos):
+# fica a seu critério versioná-las ou não. Se preferir não subir os
+# arquivos intermediários pesados, descomente as linhas abaixo:
+# dados_extraidos/
+# *.parquet
+# saidas/
+# ==========================================================================
