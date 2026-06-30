@@ -27,6 +27,12 @@ env/
 .python-version
 .ipynb_checkpoints/
 
+# --- Dados gerados pelo pipeline -----------------------------------------
+dados_extraidos/*
+!dados_extraidos/.gitkeep
+dados_processados/*
+!dados_processados/.gitkeep
+
 # --- Editores / IDEs ------------------------------------------------------
 .vscode/
 .idea/
@@ -42,10 +48,7 @@ desktop.ini
 # .zip precisam estar no repositório (o Passo 1 do desafio é descompactá-los
 # por código).
 #
-# Sobre as SAÍDAS do seu trabalho (dados extraídos, Parquet, gráficos):
-# fica a seu critério versioná-las ou não. Se preferir não subir os
-# arquivos intermediários pesados, descomente as linhas abaixo:
-# dados_extraidos/
-# *.parquet
-# saidas/
+# Sobre as SAÍDAS do trabalho:
+# - dados_extraidos/ e dados_processados/ são reproduzíveis e ficam fora do git.
+# - outputs/ pode guardar tabelas e figuras finais selecionadas para a entrega.
 # ==========================================================================
