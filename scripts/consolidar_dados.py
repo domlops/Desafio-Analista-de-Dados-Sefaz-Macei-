@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import re
 from pathlib import Path
 
 import pandas as pd
@@ -8,7 +9,7 @@ import pandas as pd
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_SOURCE_DIR = PROJECT_ROOT / "dados_extraidos"
-DEFAULT_OUTPUT_FILE = PROJECT_ROOT / "dados_processados" / "finbra_consolidado.csv"
+DEFAULT_OUTPUT_FILE = PROJECT_ROOT / "dados_processados" / "finbra_consolidado.parquet"
 CSV_ENCODING = "utf-8"
 EXPECTED_COLUMNS = [
     "Instituição",
@@ -19,6 +20,56 @@ EXPECTED_COLUMNS = [
     "Conta",
     "Identificador da Conta",
     "Valor",
+]
+FUNCTION_PATTERN = re.compile(r"^(?P<codigo_funcao>\d{2}) - (?P<nome_funcao>.+)$")
+SUBFUNCTION_PATTERN = re.compile(
+    r"^(?P<codigo_funcao>\d{2})\.(?P<codigo_subfuncao>\d{3}) - "
+    r"(?P<nome_subfuncao>.+)$"
+)
+OTHER_SUBFUNCTIONS_PATTERN = re.compile(
+    r"^FU(?P<codigo_funcao>\d{2}) - (?P<nome_conta>.+)$"
+)
+TOTAL_ACCOUNTS = {
+    "Despesas Exceto Intraorçamentárias",
+    "Despesas Intraorçamentárias",
+}
+FUNCTION_NAMES = {
+    "01": "Legislativa",
+    "02": "Judiciária",
+    "03": "Essencial à Justiça",
+    "04": "Administração",
+    "05": "Defesa Nacional",
+    "06": "Segurança Pública",
+    "07": "Relações Exteriores",
+    "08": "Assistência Social",
+    "09": "Previdência Social",
+    "10": "Saúde",
+    "11": "Trabalho",
+    "12": "Educação",
+    "13": "Cultura",
+    "14": "Direitos da Cidadania",
+    "15": "Urbanismo",
+    "16": "Habitação",
+    "17": "Saneamento",
+    "18": "Gestão Ambiental",
+    "19": "Ciência e Tecnologia",
+    "20": "Agricultura",
+    "22": "Indústria",
+    "23": "Comércio e Serviços",
+    "24": "Comunicações",
+    "25": "Energia",
+    "26": "Transporte",
+    "27": "Desporto e Lazer",
+    "28": "Encargos Especiais",
+}
+ACCOUNT_CLASSIFICATION_COLUMNS = [
+    "tipo_conta",
+    "codigo_conta",
+    "nome_conta",
+    "codigo_funcao",
+    "nome_funcao",
+    "codigo_subfuncao",
+    "nome_subfuncao",
 ]
 READ_DTYPES = {
     "Instituição": "string",
@@ -49,8 +100,9 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         default=DEFAULT_OUTPUT_FILE,
         help=(
-            "Arquivo CSV que receberá a base consolidada. "
-            "Padrão: dados_processados/finbra_consolidado.csv"
+            "Arquivo que receberá a base consolidada. "
+            "Use extensão .parquet ou .csv. "
+            "Padrão: dados_processados/finbra_consolidado.parquet"
         ),
     )
     parser.add_argument(
@@ -97,6 +149,117 @@ def read_finbra_csv(csv_path: Path) -> pd.DataFrame:
     return df
 
 
+def empty_account_classification(account: str) -> dict[str, object]:
+    return {
+        "tipo_conta": "não_classificada",
+        "codigo_conta": pd.NA,
+        "nome_conta": account,
+        "codigo_funcao": pd.NA,
+        "nome_funcao": pd.NA,
+        "codigo_subfuncao": pd.NA,
+        "nome_subfuncao": pd.NA,
+    }
+
+
+def classify_account(account: str) -> dict[str, object]:
+    if account in TOTAL_ACCOUNTS:
+        return {
+            "tipo_conta": "total",
+            "codigo_conta": pd.NA,
+            "nome_conta": account,
+            "codigo_funcao": pd.NA,
+            "nome_funcao": pd.NA,
+            "codigo_subfuncao": pd.NA,
+            "nome_subfuncao": pd.NA,
+        }
+
+    function_match = FUNCTION_PATTERN.match(account)
+    if function_match:
+        code = function_match.group("codigo_funcao")
+        name = function_match.group("nome_funcao")
+        return {
+            "tipo_conta": "função",
+            "codigo_conta": code,
+            "nome_conta": name,
+            "codigo_funcao": code,
+            "nome_funcao": name,
+            "codigo_subfuncao": pd.NA,
+            "nome_subfuncao": pd.NA,
+        }
+
+    subfunction_match = SUBFUNCTION_PATTERN.match(account)
+    if subfunction_match:
+        function_code = subfunction_match.group("codigo_funcao")
+        subfunction_code = subfunction_match.group("codigo_subfuncao")
+        subfunction_name = subfunction_match.group("nome_subfuncao")
+        return {
+            "tipo_conta": "subfunção",
+            "codigo_conta": f"{function_code}.{subfunction_code}",
+            "nome_conta": subfunction_name,
+            "codigo_funcao": function_code,
+            "nome_funcao": FUNCTION_NAMES.get(function_code, pd.NA),
+            "codigo_subfuncao": subfunction_code,
+            "nome_subfuncao": subfunction_name,
+        }
+
+    other_subfunctions_match = OTHER_SUBFUNCTIONS_PATTERN.match(account)
+    if other_subfunctions_match:
+        function_code = other_subfunctions_match.group("codigo_funcao")
+        name = other_subfunctions_match.group("nome_conta")
+        return {
+            "tipo_conta": "demais_subfunções",
+            "codigo_conta": f"FU{function_code}",
+            "nome_conta": name,
+            "codigo_funcao": function_code,
+            "nome_funcao": FUNCTION_NAMES.get(function_code, pd.NA),
+            "codigo_subfuncao": pd.NA,
+            "nome_subfuncao": pd.NA,
+        }
+
+    return empty_account_classification(account)
+
+
+def add_account_classification(df: pd.DataFrame) -> pd.DataFrame:
+    records = [classify_account(account) for account in df["Conta"]]
+    classification = pd.DataFrame.from_records(records, index=df.index)
+
+    for column in ACCOUNT_CLASSIFICATION_COLUMNS:
+        classification[column] = classification[column].astype("string")
+
+    insert_at = df.columns.get_loc("Conta") + 1
+    df_with_classification = pd.concat(
+        [
+            df.iloc[:, :insert_at],
+            classification,
+            df.iloc[:, insert_at:],
+        ],
+        axis=1,
+    )
+    validate_account_classification(df_with_classification)
+    return df_with_classification
+
+
+def validate_account_classification(df: pd.DataFrame) -> None:
+    unclassified = df[df["tipo_conta"] == "não_classificada"]
+    if not unclassified.empty:
+        examples = unclassified["Conta"].drop_duplicates().head(10).to_list()
+        raise ValueError(
+            "Existem contas sem classificação. Exemplos: "
+            f"{', '.join(examples)}"
+        )
+
+    missing_function_names = df[
+        df["tipo_conta"].isin(["função", "subfunção", "demais_subfunções"])
+        & df["nome_funcao"].isna()
+    ]
+    if not missing_function_names.empty:
+        examples = missing_function_names["Conta"].drop_duplicates().head(10).to_list()
+        raise ValueError(
+            "Existem contas com código de função desconhecido. Exemplos: "
+            f"{', '.join(examples)}"
+        )
+
+
 def validate_columns(df: pd.DataFrame, csv_path: Path) -> None:
     columns = list(df.columns)
     if columns != EXPECTED_COLUMNS:
@@ -110,12 +273,25 @@ def validate_columns(df: pd.DataFrame, csv_path: Path) -> None:
 
 def consolidate_csvs(csv_files: list[Path]) -> pd.DataFrame:
     dataframes = [read_finbra_csv(csv_path) for csv_path in csv_files]
-    return pd.concat(dataframes, ignore_index=True)
+    df = pd.concat(dataframes, ignore_index=True)
+    return add_account_classification(df)
 
 
 def save_dataframe(df: pd.DataFrame, output_file: Path) -> None:
     output_file.parent.mkdir(parents=True, exist_ok=True)
-    df.to_csv(output_file, index=False, encoding=CSV_ENCODING)
+    suffix = output_file.suffix.lower()
+
+    if suffix == ".parquet":
+        df.to_parquet(output_file, index=False)
+        return
+
+    if suffix == ".csv":
+        df.to_csv(output_file, index=False, encoding=CSV_ENCODING)
+        return
+
+    raise ValueError(
+        "Formato de saída não suportado. Use um arquivo com extensão .parquet ou .csv."
+    )
 
 
 def display_path(path: Path) -> Path:
@@ -140,6 +316,11 @@ def print_summary(df: pd.DataFrame, csv_files: list[Path]) -> None:
 
     for row in capitals_by_year.itertuples(index=False):
         print(f"- {row.ano}: {row.capitais} capitais")
+
+    print("\nTipos de conta:")
+    account_types = df["tipo_conta"].value_counts().sort_index()
+    for account_type, total in account_types.items():
+        print(f"- {account_type}: {total:,}".replace(",", "."))
 
 
 def main() -> None:

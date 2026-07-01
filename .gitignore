@@ -30,7 +30,7 @@ env/
 # --- Dados gerados pelo pipeline -----------------------------------------
 dados_extraidos/*
 !dados_extraidos/.gitkeep
-dados_processados/*
+dados_processados/*.csv
 !dados_processados/.gitkeep
 
 # --- Editores / IDEs ------------------------------------------------------
@@ -49,6 +49,8 @@ desktop.ini
 # por código).
 #
 # Sobre as SAÍDAS do trabalho:
-# - dados_extraidos/ e dados_processados/ são reproduzíveis e ficam fora do git.
+# - dados_extraidos/ é reproduzível e fica fora do git.
+# - dados_processados/*.csv é intermediário e fica fora do git.
+# - dados_processados/*.parquet é a base otimizada esperada para a entrega.
 # - outputs/ pode guardar tabelas e figuras finais selecionadas para a entrega.
 # ==========================================================================
