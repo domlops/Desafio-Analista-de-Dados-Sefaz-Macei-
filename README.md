@@ -1,351 +1,293 @@
-# 🧩 Desafio Técnico — Estágio em Análise de Dados | Sefaz Maceió
+# Análise de despesas por função das capitais brasileiras
 
-Bem-vindo(a)! Este repositório contém um **desafio prático** para a vaga de estágio em
-Análise de Dados da **Secretaria Municipal da Fazenda de Maceió (Sefaz Maceió)**.
+Este repositório reúne a minha solução para um desafio técnico de estágio em
+análise de dados da Sefaz Maceió.
 
-A ideia aqui **não é acertar uma resposta única**. Queremos entender o seu **raciocínio**,
-a sua **organização** e a sua **forma de trabalhar com dados** — desde abrir um arquivo
-"bagunçado" até transformar números em conclusões que fazem sentido.
+A proposta do desafio era trabalhar com dados de despesas das capitais
+brasileiras, publicados no FINBRA/Siconfi, e comparar o que foi empenhado com o
+que foi efetivamente pago em cada função de governo.
 
-> 💡 Não se preocupe se você nunca mexeu com dados de finanças públicas. Este README explica
-> tudo o que você precisa saber sobre os dados. O resto é com você.
+Eu organizei o projeto pensando em duas coisas: deixar o caminho reproduzível e
+contar uma história clara a partir dos dados. Por isso, além dos scripts de
+tratamento, também mantive notebooks de análise e arquivos finais em `outputs/`
+com as tabelas e figuras principais.
 
----
+## Visão geral
 
-## 🎯 O objetivo do desafio
+Os dados usados aqui vêm do relatório **Despesas por Função (Anexo I-E)**, no
+escopo de capitais, para os anos de **2020 a 2025**.
 
-Você vai trabalhar com os dados de **despesas das 26 capitais brasileiras**, publicados pelo
-**Siconfi** (o sistema de contas públicas do Tesouro Nacional), no período de **2020 a 2025**.
+A base final consolidada ficou com:
 
-Seu objetivo final é **comparar como as capitais gastam o dinheiro público por área (função)**,
-olhando principalmente para a diferença entre o que foi **empenhado** (reservado/comprometido)
-e o que foi efetivamente **pago**.
+- **50.334 linhas**;
+- **16 colunas**;
+- anos de **2020 a 2025**;
+- classificação das contas entre `função`, `subfunção`, `total` e
+  `demais_subfunções`.
 
-Em resumo, você vai:
+Um cuidado importante apareceu logo no diagnóstico: **2025 ainda está parcial**.
+Enquanto os anos de 2020 a 2024 têm 26 capitais, 2025 tem apenas 11 capitais na
+base. Por isso, usei **2024 como ano de referência** nas comparações principais.
 
-1. **Descompactar** os arquivos da pasta `dados_compactos/` por meio de código.
-2. **Ler e consolidar** tudo em um **único DataFrame** (uma única tabela).
-3. **Gerar um formato otimizado** de dados (ex.: Parquet) **ou** usar um banco/biblioteca que
-   permita consultar as informações de forma performática (ex.: DuckDB).
-4. **Analisar indicadores e fatos relevantes**, comparando as capitais por **função** e,
-   se quiser se aprofundar, por **subfunção**.
+## Pergunta principal
 
----
+A pergunta que guiou a análise foi:
 
-## 📦 Sobre os dados
+> De tudo que as capitais empenharam em cada função de governo, quanto foi
+> efetivamente pago dentro do mesmo ano?
 
-### Fonte
-Os dados vêm do **FINBRA / Siconfi** — mais especificamente do relatório
-**"Despesas por Função (Anexo I-E)"**, no escopo **Capitais**. É um dado **público e oficial**
-do Tesouro Nacional ([siconfi.tesouro.gov.br](https://siconfi.tesouro.gov.br/)).
+O indicador central foi a taxa de execução financeira:
 
-> **FINBRA** = *Finanças do Brasil*. É a base que reúne as informações contábeis e fiscais
-> declaradas pelos entes públicos (estados e municípios).
-
-### Estrutura das pastas
-
-Os arquivos estão organizados por ano dentro de `dados_compactos/`:
-
-```
-dados_compactos/
-├── 2020/
-│   └── finbra_CAP_DespesasporFuncao(AnexoI-E) (1).zip
-├── 2021/
-│   └── finbra_CAP_DespesasporFuncao(AnexoI-E).zip
-├── 2022/
-│   └── finbra_CAP_DespesasporFuncao(AnexoI-E).zip
-├── 2023/
-│   └── finbra_CAP_DespesasporFuncao(AnexoI-E).zip
-├── 2024/
-│   └── finbra_CAP_DespesasporFuncao(AnexoI-E).zip
-└── 2025/
-    └── finbra_CAP_DespesasporFuncao(AnexoI-E).zip
+```text
+taxa de execução = despesas pagas / despesas empenhadas
 ```
 
-Cada `.zip` contém **um arquivo `finbra.csv`** com os dados daquele ano.
+Essa taxa ajuda a comparar o valor pago com o valor comprometido no orçamento.
+Ela não deve ser lida, sozinha, como medida de qualidade do gasto público. Uma
+taxa mais baixa pode indicar mais valores ficando para restos a pagar, mas a
+interpretação depende do contexto de cada função, contrato e prefeitura.
 
-### ⚠️ Formato do CSV (leia com atenção — aqui é onde a maioria tropeça!)
+Também usei valores per capita em alguns recortes, porque comparar capitais de
+tamanhos muito diferentes apenas pelo valor total pode distorcer a leitura.
 
-O arquivo **não é um CSV "comum"** no padrão internacional. Ele segue o padrão brasileiro do
-Siconfi, e tem algumas particularidades que você precisa tratar no código:
+## Estrutura do repositório
 
-| Característica | Valor | Por que importa |
-|---|---|---|
-| **Encoding** | `ISO-8859-1` (Latin-1) | Se você abrir como UTF-8, acentos viram `�` (ex.: "Saúde" → "Sa�de"). |
-| **Separador de colunas** | ponto e vírgula `;` | O separador **não** é a vírgula. |
-| **Separador decimal** | vírgula `,` | `874885274,98` é **R$ 874 milhões**, não 874 bilhões. |
-| **Linhas de cabeçalho extras** | 3 linhas antes da tabela | As 3 primeiras linhas são **metadados**, não dados. |
-
-As **3 primeiras linhas** de cada arquivo são assim (precisam ser ignoradas na leitura):
-
-```
-Exercício: 2020
-Escopo: Capitais
-Tabela: Despesas por Função (Anexo I-E)
-Instituição;Cod.IBGE;UF;População;Coluna;Conta;Identificador da Conta;Valor   ← cabeçalho real
-```
-
-### Dicionário de colunas
-
-A partir da 4ª linha, temos a tabela de verdade, com estas colunas:
-
-| Coluna | Descrição | Exemplo |
-|---|---|---|
-| `Instituição` | Nome da prefeitura (capital) | `Prefeitura Municipal de Maceió - AL` |
-| `Cod.IBGE` | Código IBGE do município | `2704302` |
-| `UF` | Unidade da Federação | `AL` |
-| `População` | População estimada do município | `1025360` |
-| `Coluna` | **Estágio da despesa** (ver abaixo) | `Despesas Empenhadas` |
-| `Conta` | **Função ou subfunção** orçamentária (ver abaixo) | `10 - Saúde` |
-| `Identificador da Conta` | Código técnico interno do Siconfi | `siconfi-cor_TotalDespesas` |
-| `Valor` | Valor em reais (R$) | `874885274,98` |
-
----
-
-## 💰 Conceitos que você precisa entender
-
-### Os estágios da despesa pública (coluna `Coluna`)
-
-No setor público, uma despesa não é simplesmente "paga". Ela passa por **etapas**. No arquivo,
-a coluna `Coluna` indica em qual etapa o valor está:
-
-| Valor em `Coluna` | O que significa (em linguagem simples) |
-|---|---|
-| **Despesas Empenhadas** | O governo **reservou/comprometeu** o dinheiro para uma finalidade. É a "promessa de gasto". |
-| **Despesas Liquidadas** | O serviço/produto foi **entregue e conferido** — a dívida foi reconhecida. |
-| **Despesas Pagas** | O dinheiro **saiu do caixa** de fato. |
-| **Inscrição de Restos a Pagar Não Processados** | Foi empenhado, mas **ainda não foi liquidado** no ano — fica para o ano seguinte. |
-| **Inscrição de Restos a Pagar Processados** | Foi liquidado, mas **ainda não foi pago** no ano — fica para o ano seguinte. |
-
-O fluxo normal é: **Empenho → Liquidação → Pagamento**.
-
-👉 **O coração deste desafio** é comparar **Empenhado × Pago**. A diferença entre os dois conta
-uma história: quanto a prefeitura prometeu gastar versus quanto realmente saiu do caixa.
-
-### O que é "Função" e "Subfunção"? (coluna `Conta`)
-
-Toda despesa pública é classificada por **função** e **subfunção** — é a forma de dizer
-**"em que área"** o dinheiro foi gasto. Isso é padronizado para todo o Brasil pela
-**Portaria MOG nº 42/1999**.
-
-- **Função** = a **grande área** de atuação do governo. São códigos de **2 dígitos**.
-  - Exemplos: `10 - Saúde`, `12 - Educação`, `04 - Administração`, `15 - Urbanismo`.
-- **Subfunção** = um **detalhamento** dentro (ou através) de uma função. Vêm no formato `XX.YYY`.
-  - Exemplos dentro de **Saúde**: `10.301 - Atenção Básica`, `10.302 - Assistência Hospitalar e Ambulatorial`.
-  - Exemplos dentro de **Educação**: `12.361 - Ensino Fundamental`, `12.365 - Educação Infantil`.
-
-> 🧠 **Sacada importante:** a subfunção é "matricial". Uma mesma subfunção pode aparecer em
-> várias funções. Repare que `122 - Administração Geral` aparece como `04.122`, `10.122`,
-> `12.122`... ou seja, quase toda função tem um pedaço gasto com administração. Isso é normal.
-
-#### As 27 funções que você vai encontrar nos dados
-
-| Código | Função | Código | Função |
-|---|---|---|---|
-| 01 | Legislativa | 15 | Urbanismo |
-| 02 | Judiciária | 16 | Habitação |
-| 03 | Essencial à Justiça | 17 | Saneamento |
-| 04 | Administração | 18 | Gestão Ambiental |
-| 05 | Defesa Nacional | 19 | Ciência e Tecnologia |
-| 06 | Segurança Pública | 20 | Agricultura |
-| 07 | Relações Exteriores | 22 | Indústria |
-| 08 | Assistência Social | 23 | Comércio e Serviços |
-| 09 | Previdência Social | 24 | Comunicações |
-| 10 | **Saúde** | 25 | Energia |
-| 11 | Trabalho | 26 | Transporte |
-| 12 | **Educação** | 27 | Desporto e Lazer |
-| 13 | Cultura | 28 | Encargos Especiais |
-| 14 | Direitos da Cidadania | | |
-
-*(A função `21` não é usada por municípios.)*
-
-#### Contas "especiais" que aparecem na coluna `Conta`
-
-Além das funções e subfunções, você vai ver algumas linhas agregadas. **Cuidado para não
-somá-las junto com as funções** (senão você conta o mesmo valor duas vezes):
-
-- **`Despesas Exceto Intraorçamentárias`** e **`Despesas Intraorçamentárias`** — são totais.
-  "Intraorçamentárias" são gastos de um órgão público pagando outro do mesmo município.
-- **`FUxx - Demais Subfunções`** (ex.: `FU10 - Demais Subfunções`) — é a soma das subfunções
-  "menores" de uma função, agrupadas como resto.
-
-### ⚠️ Atenção: completude dos dados por ano
-
-Nem todo ano está 100% preenchido! Os municípios têm prazos para declarar, e os dados mais
-recentes ainda estão sendo consolidados. **No momento, o ano de 2025 está incompleto** — apenas
-parte das capitais entregou seus dados.
-
-👉 **Antes de comparar anos**, conte quantas capitais existem em cada ano. Comparar um 2024 com
-26 capitais contra um 2025 com 11 capitais levaria a conclusões erradas. Saber identificar isso
-**conta pontos** na avaliação. 😉
-
----
-
-## 🪜 Passo a passo sugerido
-
-A seguir, um roteiro. Você pode adaptar a estrutura como preferir — o importante é que cada
-etapa fique **registrada em commits** no seu repositório.
-
-### Passo 1 — Descompactar os arquivos por código
-
-Não vale descompactar na mão! Escreva um script que **percorra** a pasta `dados_compactos/`,
-encontre todos os `.zip` e os extraia.
-
-> 💡 Em Python, dê uma olhada em `pathlib` / `glob` (para achar os arquivos) e no módulo
-> `zipfile` (para extrair). Pense em **onde** colocar os arquivos extraídos (ex.: uma pasta
-> `dados_extraidos/`) e em como **diferenciar o ano** de cada arquivo (a pasta de origem já diz!).
-
-### Passo 2 — Ler e consolidar em um único DataFrame
-
-Leia cada `finbra.csv` e **junte todos em uma única tabela**. Lembre-se das pegadinhas do
-formato! Em `pandas`, um ponto de partida seria:
-
-```python
-import pandas as pd
-
-df = pd.read_csv(
-    caminho_do_csv,
-    sep=";",            # separador é ponto e vírgula
-    skiprows=3,         # pula as 3 linhas de metadados
-    encoding="latin-1", # ISO-8859-1, para os acentos não quebrarem
-    decimal=",",        # vírgula é o separador decimal
-    thousands=".",      # (se necessário) ponto como separador de milhar
-)
+```text
+.
+├── dados_compactos/             # ZIPs originais do desafio
+├── dados_extraidos/             # CSVs extraídos por script, não versionados
+├── dados_processados/
+│   └── finbra_consolidado.parquet
+├── notebooks/
+│   ├── 01_diagnostico_dados.ipynb
+│   └── 02_analise_execucao_funcoes.ipynb
+├── outputs/
+│   ├── figuras/
+│   └── tabelas/
+├── scripts/
+│   ├── extrair_dados.py
+│   ├── consolidar_dados.py
+│   ├── validar_dados.py
+│   └── gerar_outputs.py
+├── README.md
+└── requirements.txt
 ```
 
-Sugestões para enriquecer a tabela final:
-- Crie uma coluna **`ano`** (você sabe o ano pela pasta de origem do arquivo).
-- Crie uma coluna que diferencie **`função` vs `subfunção`** a partir do texto da coluna `Conta`
-  (dica: funções começam com 2 dígitos e um espaço, `10 - ...`; subfunções têm um ponto,
-  `10.301 - ...`).
-- Garanta que `Valor` ficou como **número** (e não como texto), para conseguir somar e comparar.
+## Como reproduzir
 
-### Passo 3 — Gerar um formato otimizado / base performática
+Crie e ative um ambiente virtual:
 
-Ler 6 CSVs toda vez é lento e pesado. Salve sua tabela consolidada em um formato eficiente,
-ou use uma ferramenta de consulta rápida. Duas estratégias comuns:
+```bash
+python -m venv .venv
+source .venv/bin/activate
+```
 
-- **Parquet**: `df.to_parquet("finbra_consolidado.parquet")` — arquivo colunar, comprimido e
-  rápido de ler.
-- **DuckDB**: um banco analítico "de bolso" que roda no seu próprio computador e consulta
-  Parquet/CSV com **SQL** muito rápido, sem precisar instalar servidor.
+Instale as dependências:
 
-Explique no seu repositório **por que** você escolheu a abordagem que usou.
+```bash
+pip install -r requirements.txt
+```
 
-### Passo 4 — Analisar indicadores e fatos relevantes
+Extraia os CSVs a partir dos ZIPs originais:
 
-Aqui é onde você brilha! 🌟 O foco pedido é:
+```bash
+python scripts/extrair_dados.py
+```
 
-> **Comparar as despesas por função entre as capitais, olhando o que foi *empenhado* versus o
-> que foi *pago*.** Se quiser, detalhe também por subfunção.
+Consolide os dados em uma base única:
 
-Algumas direções (você não precisa fazer todas — escolha as que achar mais interessantes):
+```bash
+python scripts/consolidar_dados.py
+```
 
-- Ranqueie as capitais por gasto em uma função (ex.: Saúde, Educação) e veja quem **paga**
-  uma proporção maior do que **empenha**.
-- Compare **per capita** (valor ÷ `População`) — comparar São Paulo com Vitória em valor
-  absoluto é injusto; por habitante a conversa muda.
-- Veja a **evolução ao longo dos anos** (2020 a 2024) de uma função para Maceió e compare com
-  a média das capitais.
-- Dentro de uma função, descubra **quais subfunções concentram o gasto** (ex.: em Saúde,
-  quanto vai para `10.301 - Atenção Básica`?).
+Valide a base consolidada:
 
----
+```bash
+python scripts/validar_dados.py
+```
 
-## 🛠️ Ferramentas e linguagens sugeridas
+Gere as tabelas e figuras finais:
 
-Você tem **liberdade** para escolher suas ferramentas. Abaixo, algumas sugestões boas para
-este tipo de desafio:
+```bash
+python scripts/gerar_outputs.py
+```
 
-### Linguagem
-- **Python** *(recomendado)* — é o padrão de mercado em análise de dados e tem todas as
-  bibliotecas que você vai precisar.
-- **R** — ótima alternativa, especialmente se você já tem familiaridade (`tidyverse`, `data.table`).
+Os notebooks podem ser abertos com:
 
-### Bibliotecas (Python)
+```bash
+jupyter lab notebooks/
+```
 
-| Para... | Bibliotecas |
-|---|---|
-| Manipular dados | `pandas` (clássico), `polars` (moderno e rápido) |
-| Consultar com SQL / performance | `duckdb` |
-| Salvar formato otimizado | `pyarrow` (Parquet) |
-| Visualizar (gráficos) | `matplotlib`, `seaborn`, `plotly` |
-| Lidar com arquivos/zip | `pathlib`, `glob`, `zipfile` (já vêm no Python) |
-| Organizar a análise | `Jupyter Notebook` |
+## Pipeline de dados
 
-> 💡 Boa prática: use um **ambiente virtual** (`venv`) e deixe um arquivo `requirements.txt`
-> com as bibliotecas que você usou, para qualquer pessoa conseguir rodar o seu projeto.
+O pipeline foi dividido em quatro partes principais.
 
-### APPs de DataViz (Caso queira)
+1. **Extração dos ZIPs**
 
-- **Power BI**
-- **Tableau**
-- **Google Data Studio**
+   O script `scripts/extrair_dados.py` percorre `dados_compactos/`, identifica
+   os arquivos `.zip` e extrai cada `finbra.csv` para `dados_extraidos/{ano}/`.
+   Nessa etapa, também trato o encoding original dos arquivos.
 
----
+2. **Consolidação**
 
-## 📊 Exemplo de indicador para te inspirar
+   O script `scripts/consolidar_dados.py` lê os CSVs extraídos, respeitando as
+   particularidades do Siconfi:
+   - encoding original em `latin-1`, convertido na extração;
+   - separador de colunas `;`;
+   - vírgula como separador decimal;
+   - três linhas iniciais de metadados antes do cabeçalho real.
 
-Um indicador simples e poderoso para este desafio é a **Taxa de Execução Financeira**:
+   Depois disso, adiciono a coluna `ano`, junto todos os anos em uma única base
+   e classifico a coluna `Conta`.
 
-$$\text{Taxa de Execução} = \frac{\text{Despesas Pagas}}{\text{Despesas Empenhadas}} \times 100$$
+3. **Base otimizada em Parquet**
 
-Ela responde: **de tudo o que a prefeitura comprometeu gastar em uma área, quanto realmente
-saiu do caixa dentro do ano?** Uma taxa baixa sugere que sobrou muita coisa em *restos a pagar*
-(contas que ficaram para o ano seguinte).
+   A base final é salva em
+   `dados_processados/finbra_consolidado.parquet`.
 
-#### Exemplo ilustrativo (valores fictícios, só para entender a leitura)
+   Escolhi Parquet porque ele é um formato colunar, comprimido e mais rápido de
+   ler em análises repetidas. Como os notebooks usam a base consolidada várias
+   vezes, isso evita reler e tratar todos os CSVs a cada nova etapa.
 
-| Capital | Função | Empenhado (R$) | Pago (R$) | Taxa de Execução |
-|---|---|---:|---:|---:|
-| Capital A | 10 - Saúde | 500.000.000 | 480.000.000 | **96%** |
-| Capital B | 10 - Saúde | 500.000.000 | 350.000.000 | **70%** |
-| Capital A | 12 - Educação | 400.000.000 | 360.000.000 | **90%** |
+4. **Validação e outputs**
 
-**Leitura:** na Saúde, a *Capital A* pagou 96% do que empenhou (execução alta), enquanto a
-*Capital B* pagou só 70% — ou seja, comprometeu o orçamento, mas deixou **30% para restos a
-pagar**. Esse tipo de diferença é exatamente o que rende uma boa análise: *por que* isso
-acontece? É um padrão que se repete nos anos? Acontece em todas as funções ou só em algumas?
+   O script `scripts/validar_dados.py` confere colunas, tipos, anos disponíveis,
+   quantidade de capitais por ano, nulos esperados e possíveis caracteres
+   quebrados.
 
-#### Outras perguntas que dariam boas análises
-- Qual capital tem a **melhor (e a pior)** taxa de execução média? Isso muda por função?
-- Em quais funções as capitais mais "empurram" gasto para *restos a pagar*?
-- O gasto **per capita** com Saúde e Educação está crescendo ou caindo de 2020 a 2024?
-- Onde Maceió se posiciona em relação às demais capitais? Em que áreas ela se destaca?
+   O script `scripts/gerar_outputs.py` materializa as tabelas e figuras finais
+   usadas na leitura dos resultados.
 
-> Não existe "a resposta certa". Capriche em **mostrar o raciocínio**, **justificar as escolhas**
-> e **traduzir os números em conclusões claras**.
+## Cuidados importantes
 
----
+Alguns cuidados foram centrais para evitar conclusões erradas.
 
-## ✅ O que vamos avaliar
+- **2025 está incompleto.** O ano aparece com apenas 11 capitais, então ficou
+  fora das comparações principais.
+- **A coluna `Conta` mistura níveis diferentes.** Funções, subfunções, totais e
+  linhas como `FUxx - Demais Subfunções` não podem ser somadas sem critério.
+- **A análise principal usa `tipo_conta == "função"`.** Isso reduz o risco de
+  dupla contagem.
+- **Valores per capita complementam os valores absolutos.** Eles ajudam a
+  comparar capitais com populações muito diferentes.
+- **Taxa de execução não é sinônimo de qualidade.** Ela mostra a relação entre
+  pago e empenhado, mas não explica sozinha por que a diferença aconteceu.
 
-| Critério | O que observamos |
-|---|---|
-| **Tratamento dos dados** | Você lidou corretamente com encoding, decimal, metadados e dados incompletos? |
-| **Qualidade do código** | Está organizado, legível e reproduzível (dá para rodar do zero)? |
-| **Análise e insights** | As conclusões fazem sentido e estão bem comunicadas? |
-| **Organização do repositório** | Estrutura clara, com `README`/comentários explicando as escolhas. |
-| **Processo público** | O caminho está visível nos **commits** (não só o resultado final). |
+## Indicadores usados
 
-> Não buscamos perfeição — buscamos **clareza de raciocínio** e **honestidade técnica**.
-> Documentar uma dificuldade ou limitação também conta a seu favor.
+Usei três indicadores principais:
 
----
+| Indicador                        | Como foi usado                          |
+| -------------------------------- | --------------------------------------- |
+| Taxa de execução financeira      | `despesas pagas / despesas empenhadas`  |
+| Diferença entre empenhado e pago | Valor empenhado menos valor pago        |
+| Valor pago per capita            | Despesas pagas divididas pela população |
 
-## 📤 Como entregar
+Nos rankings, valores mais altos de taxa de execução indicam que uma proporção
+maior do que foi empenhado foi paga dentro do ano. Ainda assim, a análise foi
+tratada como comparação descritiva, sem afirmar causalidade.
 
-1. Faça um **fork** deste repositório para a sua conta do GitHub.
-2. Desenvolva sua solução no fork, com **commits frequentes** (queremos ver o processo, não só
-   o resultado).
-3. Deixe tudo **público**: código, resultados e comentários.
-4. **Compartilhe o link do seu repositório** com a gente **até 07/07/2026**.
+## Principais resultados
 
-### 💬 Dúvidas?
-Entre no nosso grupo do WhatsApp para tirar dúvidas, trocar dicas e fazer networking:
-**(https://chat.whatsapp.com/I3dfAfriDRFCCYtGb6LINo?s=cl&p=a&ilr=4)**
+Em 2024, as capitais com maiores taxas gerais de execução financeira foram:
 
----
+| Posição | Capital      | Taxa de execução |
+| ------: | ------------ | ---------------: |
+|       1 | Belém - PA   |           98,37% |
+|       2 | Manaus - AM  |           98,16% |
+|       3 | Aracaju - SE |           97,85% |
+|       4 | Palmas - TO  |           97,70% |
+|       5 | Recife - PE  |           97,65% |
 
-Boa sorte e bom desafio! 🚀
-**José Gonçalves Jr - Head de Dados - Sefaz Maceió**
+Maceió ficou em **18º lugar** no ranking geral das capitais em 2024, com taxa de
+execução de **92,42%**.
+
+Entre as funções, as menores taxas de execução em 2024 apareceram em:
+
+| Posição | Função              | Taxa de execução |
+| ------: | ------------------- | ---------------: |
+|       1 | Agricultura         |           83,66% |
+|       2 | Saneamento          |           85,26% |
+|       3 | Urbanismo           |           87,77% |
+|       4 | Comércio e Serviços |           88,57% |
+|       5 | Gestão Ambiental    |           89,22% |
+
+Esses resultados não significam, automaticamente, pior gestão ou melhor gestão.
+Eles indicam onde a distância proporcional entre empenhado e pago foi maior e,
+por isso, onde faria sentido investigar com mais contexto.
+
+![Ranking de taxa de execução das capitais em 2024](outputs/figuras/ranking_capitais_taxa_execucao_2024.png)
+
+## Recorte de Maceió
+
+Como o desafio é da Sefaz Maceió, aprofundei a leitura em Maceió, principalmente
+em Saúde e Educação.
+
+Em **Saúde**, Maceió teve um resultado forte em 2024:
+
+- pagou **97,36%** do que empenhou;
+- ficou em **5º lugar entre as 26 capitais**;
+- teve valor pago per capita levemente acima da mediana das demais capitais.
+
+Em **Educação**, a leitura foi diferente:
+
+- pagou **85,52%** do que empenhou;
+- ficou em **24º lugar entre as 26 capitais**;
+- teve valor pago per capita abaixo da mediana das demais capitais.
+
+Essa diferença é um dos achados mais importantes da análise: Maceió aparece bem
+posicionada em Saúde pela taxa de execução, mas fica entre as últimas capitais
+em Educação, tanto na execução quanto no valor pago por habitante.
+
+![Maceió versus mediana das demais capitais](outputs/figuras/posicao_maceio_saude_educacao_2024.png)
+
+Também olhei rapidamente as subfunções de Saúde e Educação em Maceió. Esse
+recorte entra como apoio à interpretação, não como foco principal da análise.
+
+Em 2024, as maiores concentrações do valor pago foram:
+
+| Função   | Principal subfunção paga em Maceió               | Participação no valor pago da função |
+| -------- | ------------------------------------------------ | -----------------------------------: |
+| Saúde    | `10.302 - Assistência Hospitalar e Ambulatorial` |                               58,52% |
+| Educação | `12.361 - Ensino Fundamental`                    |                               42,36% |
+
+![Evolução de Maceió versus mediana das demais capitais](outputs/figuras/maceio_vs_mediana_taxa_execucao_saude_educacao.png)
+
+## Arquivos finais
+
+As tabelas finais estão em `outputs/tabelas/`:
+
+| Arquivo                                     | Conteúdo                                                       |
+| ------------------------------------------- | -------------------------------------------------------------- |
+| `ranking_capitais_2024.csv`                 | Ranking das capitais pela taxa de execução em 2024             |
+| `ranking_funcoes_2024.csv`                  | Ranking das funções pela taxa de execução em 2024              |
+| `maceio_saude_educacao_2020_2024.csv`       | Comparação de Maceió com a média e mediana das demais capitais |
+| `maceio_subfuncoes_saude_educacao_2024.csv` | Recorte de subfunções em Saúde e Educação para Maceió          |
+
+As figuras finais estão em `outputs/figuras/`:
+
+| Arquivo                                              | Conteúdo                                                      |
+| ---------------------------------------------------- | ------------------------------------------------------------- |
+| `ranking_capitais_taxa_execucao_2024.png`            | Ranking visual das capitais em 2024                           |
+| `maceio_vs_mediana_taxa_execucao_saude_educacao.png` | Evolução da taxa de execução em Saúde e Educação              |
+| `posicao_maceio_saude_educacao_2024.png`             | Comparação direta de Maceió com a mediana das demais capitais |
+
+## Limitações
+
+Algumas limitações ficaram no radar durante a análise.
+
+- O ano de 2025 está parcial, então não usei esse ano para comparar desempenho
+  entre capitais.
+- A análise usa dados declarados ao Siconfi. Não fiz auditoria externa dos
+  lançamentos.
+- A taxa de execução mostra a relação entre pago e empenhado, mas não explica
+  sozinha os motivos das diferenças.
+- O recorte por subfunção foi usado apenas para Saúde e Educação em Maceió.
+  Esse recorte poderia ser expandido em uma investigação mais longa.
+- Não comparei regras locais, calendários de pagamento, restos a pagar de anos
+  anteriores ou detalhes contratuais, que poderiam mudar a interpretação de
+  alguns resultados.
+
+Mesmo com essas limitações, o projeto já cumpre o objetivo central do desafio:
+extrair, tratar, validar e analisar os dados de forma reproduzível, mostrando
+com clareza onde Maceió se posiciona em relação às demais capitais.
