@@ -16,7 +16,7 @@ DEFAULT_OUTPUT_DIR = PROJECT_ROOT / "outputs"
 ANOS_COMPLETOS = [2020, 2021, 2022, 2023, 2024]
 ANO_REFERENCIA = 2024
 FUNCOES_PRIORITARIAS = ["Saúde", "Educação"]
-MACEIO_PATTERN = "Maceió"
+MACEIO_IBGE = "2704302"
 
 
 def parse_args() -> argparse.Namespace:
@@ -56,6 +56,10 @@ def format_currency_br(value: float) -> str:
 
 def currency_axis(value: float, _position: int) -> str:
     return format_currency_br(value)
+
+
+def is_maceio(df: pd.DataFrame) -> pd.Series:
+    return df["Cod.IBGE"].astype("string").eq(MACEIO_IBGE)
 
 
 def add_capital_column(df: pd.DataFrame) -> pd.DataFrame:
@@ -179,12 +183,8 @@ def build_maceio_comparison(execution: pd.DataFrame) -> pd.DataFrame:
         & execution["nome_funcao"].isin(FUNCOES_PRIORITARIAS)
     ].copy()
 
-    maceio = selected[
-        selected["capital"].str.contains(MACEIO_PATTERN, case=False, na=False)
-    ].copy()
-    other_capitals = selected[
-        ~selected["capital"].str.contains(MACEIO_PATTERN, case=False, na=False)
-    ].copy()
+    maceio = selected[is_maceio(selected)].copy()
+    other_capitals = selected[~is_maceio(selected)].copy()
 
     reference = (
         other_capitals.groupby(["ano", "nome_funcao"], as_index=False)
@@ -259,15 +259,51 @@ def build_maceio_positions(execution: pd.DataFrame) -> pd.DataFrame:
         "rank_pago_per_capita",
         "total_capitais",
     ]
-    return selected[
-        selected["capital"].str.contains(MACEIO_PATTERN, case=False, na=False)
-    ][columns].sort_values("nome_funcao")
+    return selected[is_maceio(selected)][columns].sort_values("nome_funcao")
+
+
+def build_maceio_functions(execution: pd.DataFrame) -> pd.DataFrame:
+    selected = execution[execution["ano"] == ANO_REFERENCIA].copy()
+    selected["rank_taxa_execucao"] = (
+        selected.groupby("nome_funcao")["taxa_execucao"]
+        .rank(ascending=False, method="min")
+        .astype(int)
+    )
+    selected["rank_pago_per_capita"] = (
+        selected.groupby("nome_funcao")["valor_pago_per_capita"]
+        .rank(ascending=False, method="min")
+        .astype(int)
+    )
+    selected["total_capitais"] = selected.groupby("nome_funcao")[
+        "Cod.IBGE"
+    ].transform("nunique")
+
+    columns = [
+        "ano",
+        "capital",
+        "UF",
+        "Cod.IBGE",
+        "codigo_funcao",
+        "nome_funcao",
+        "valor_empenhado",
+        "valor_pago",
+        "taxa_execucao_percentual",
+        "rank_taxa_execucao",
+        "valor_pago_per_capita",
+        "rank_pago_per_capita",
+        "total_capitais",
+    ]
+    return (
+        selected[is_maceio(selected)][columns]
+        .sort_values("codigo_funcao")
+        .reset_index(drop=True)
+    )
 
 
 def build_maceio_subfunctions(df: pd.DataFrame, execution: pd.DataFrame) -> pd.DataFrame:
     paid_function_totals = execution[
         (execution["ano"] == ANO_REFERENCIA)
-        & execution["capital"].str.contains(MACEIO_PATTERN, case=False, na=False)
+        & is_maceio(execution)
         & execution["nome_funcao"].isin(FUNCOES_PRIORITARIAS)
     ][["codigo_funcao", "nome_funcao", "valor_pago"]].rename(
         columns={"valor_pago": "valor_pago_funcao"}
@@ -275,7 +311,7 @@ def build_maceio_subfunctions(df: pd.DataFrame, execution: pd.DataFrame) -> pd.D
 
     base = df[
         (df["ano"] == ANO_REFERENCIA)
-        & df["capital"].str.contains(MACEIO_PATTERN, case=False, na=False)
+        & is_maceio(df)
         & df["nome_funcao"].isin(FUNCOES_PRIORITARIAS)
         & df["tipo_conta"].isin(["subfunção", "demais_subfunções"])
         & (df["Coluna"] == "Despesas Pagas")
@@ -306,13 +342,20 @@ def build_maceio_subfunctions(df: pd.DataFrame, execution: pd.DataFrame) -> pd.D
 
 def save_table(df: pd.DataFrame, path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    df.to_csv(path, index=False, sep=";", decimal=",", encoding="utf-8")
+    df_to_save = df.copy()
+    for column in df_to_save.select_dtypes(include=["float"]).columns:
+        if column == "taxa_execucao":
+            df_to_save[column] = df_to_save[column].round(6)
+        else:
+            df_to_save[column] = df_to_save[column].round(2)
+
+    df_to_save.to_csv(path, index=False, sep=";", decimal=",", encoding="utf-8")
 
 
 def plot_capital_ranking(ranking: pd.DataFrame, path: Path) -> None:
     plot_data = ranking.sort_values("taxa_execucao_percentual", ascending=True)
     colors = np.where(
-        plot_data["capital"].str.contains(MACEIO_PATTERN, case=False, na=False),
+        is_maceio(plot_data),
         "#c8553d",
         "#3a7ca5",
     )
@@ -539,6 +582,7 @@ def gerar_outputs(
     ranking_functions = build_function_ranking(execution)
     maceio_comparison = build_maceio_comparison(execution)
     maceio_positions = build_maceio_positions(execution)
+    maceio_functions = build_maceio_functions(execution)
     maceio_subfunctions = build_maceio_subfunctions(df, execution)
 
     tables_dir = output_dir / "tabelas"
@@ -551,6 +595,7 @@ def gerar_outputs(
         "ranking_funcoes_2024": tables_dir / "ranking_funcoes_2024.csv",
         "maceio_saude_educacao_2020_2024": tables_dir
         / "maceio_saude_educacao_2020_2024.csv",
+        "maceio_funcoes_2024": tables_dir / "maceio_funcoes_2024.csv",
         "maceio_subfuncoes_saude_educacao_2024": tables_dir
         / "maceio_subfuncoes_saude_educacao_2024.csv",
         "fig_ranking_capitais_2024": figures_dir
@@ -566,6 +611,7 @@ def gerar_outputs(
     save_table(
         maceio_comparison, generated_files["maceio_saude_educacao_2020_2024"]
     )
+    save_table(maceio_functions, generated_files["maceio_funcoes_2024"])
     save_table(
         maceio_subfunctions,
         generated_files["maceio_subfuncoes_saude_educacao_2024"],

@@ -42,6 +42,10 @@ EXPECTED_ACCOUNT_TYPES = {
     "demais_subfunções",
     "total",
 }
+EXPECTED_TOTAL_ACCOUNTS = {
+    "Despesas Exceto Intraorçamentárias",
+    "Despesas Intraorçamentárias",
+}
 REQUIRED_NOT_NULL_COLUMNS = [
     "ano",
     "Instituição",
@@ -180,6 +184,27 @@ def validate_account_types(df: pd.DataFrame) -> None:
         )
 
 
+def validate_total_accounts(df: pd.DataFrame) -> None:
+    total_account_rows = df["Conta"].isin(EXPECTED_TOTAL_ACCOUNTS)
+    classified_as_total = df["tipo_conta"] == "total"
+
+    totals_not_separated = df[total_account_rows & ~classified_as_total]
+    if not totals_not_separated.empty:
+        examples = totals_not_separated["Conta"].drop_duplicates().to_list()
+        raise ValidationError(
+            "Contas totais não foram classificadas como `total`: "
+            f"{', '.join(examples)}"
+        )
+
+    unexpected_total_rows = df[classified_as_total & ~total_account_rows]
+    if not unexpected_total_rows.empty:
+        examples = unexpected_total_rows["Conta"].drop_duplicates().head(10).to_list()
+        raise ValidationError(
+            "Existem linhas classificadas como `total` fora das contas esperadas. "
+            f"Exemplos: {', '.join(examples)}"
+        )
+
+
 def validate_classification_nulls(df: pd.DataFrame) -> None:
     total_rows = df["tipo_conta"] == "total"
     function_related_rows = df["tipo_conta"].isin(
@@ -272,6 +297,9 @@ def run_validations(df: pd.DataFrame) -> pd.Series:
 
     validate_account_types(df)
     print_success("tipos de conta conferidos")
+
+    validate_total_accounts(df)
+    print_success("totais intra/exceto separados para evitar dupla contagem")
 
     validate_classification_nulls(df)
     print_success("nulos da classificação conferidos")

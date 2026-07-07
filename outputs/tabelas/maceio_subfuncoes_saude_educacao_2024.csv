@@ -1,16 +1,16 @@
 codigo_funcao;nome_funcao;tipo_conta;codigo_conta;nome_conta;valor_pago;valor_pago_funcao;participacao_no_pago_funcao_percentual
-12;Educação;subfunção;12.361;Ensino Fundamental;291273033,05;687560500,43;42,36325863219862
-12;Educação;subfunção;12.122;Administração Geral;193550273,99;687560500,43;28,150289882701777
-12;Educação;subfunção;12.368;Educação Básica;141609400,11;687560500,43;20,59591847138362
-12;Educação;subfunção;12.365;Educação Infantil;50237143,03;687560500,43;7,306577820945462
-12;Educação;demais_subfunções;FU12;Demais Subfunções;6210397,33;687560500,43;0,9032510340713321
-12;Educação;subfunção;12.367;Educação Especial;3440711,17;687560500,43;0,5004230417320631
-12;Educação;subfunção;12.366;Educação de Jovens e Adultos;1239541,75;687560500,43;0,18028111696713106
-10;Saúde;subfunção;10.302;Assistência Hospitalar e Ambulatorial;739098739,88;1262955548,42;58,521358159013396
-10;Saúde;subfunção;10.301;Atenção Básica;346872424,92;1262955548,42;27,465133302114165
-10;Saúde;subfunção;10.122;Administração Geral;77189022,44;1262955548,42;6,111776660434808
-10;Saúde;subfunção;10.305;Vigilância Epidemiológica;68567166,7;1262955548,42;5,429103723070843
-10;Saúde;subfunção;10.303;Suporte Profilático e Terapêutico;22785057,9;1262955548,42;1,8041060850086825
-10;Saúde;subfunção;10.304;Vigilância Sanitária;8141131,48;1262955548,42;0,644609502700616
-10;Saúde;demais_subfunções;FU10;Demais Subfunções;224354,12;1262955548,42;0,017764213497511814
-10;Saúde;subfunção;10.306;Alimentação e Nutrição;77650,98;1262955548,42;0,006148354159981639
+12;Educação;subfunção;12.361;Ensino Fundamental;291273033,05;687560500,43;42,36
+12;Educação;subfunção;12.122;Administração Geral;193550273,99;687560500,43;28,15
+12;Educação;subfunção;12.368;Educação Básica;141609400,11;687560500,43;20,6
+12;Educação;subfunção;12.365;Educação Infantil;50237143,03;687560500,43;7,31
+12;Educação;demais_subfunções;FU12;Demais Subfunções;6210397,33;687560500,43;0,9
+12;Educação;subfunção;12.367;Educação Especial;3440711,17;687560500,43;0,5
+12;Educação;subfunção;12.366;Educação de Jovens e Adultos;1239541,75;687560500,43;0,18
+10;Saúde;subfunção;10.302;Assistência Hospitalar e Ambulatorial;739098739,88;1262955548,42;58,52
+10;Saúde;subfunção;10.301;Atenção Básica;346872424,92;1262955548,42;27,47
+10;Saúde;subfunção;10.122;Administração Geral;77189022,44;1262955548,42;6,11
+10;Saúde;subfunção;10.305;Vigilância Epidemiológica;68567166,7;1262955548,42;5,43
+10;Saúde;subfunção;10.303;Suporte Profilático e Terapêutico;22785057,9;1262955548,42;1,8
+10;Saúde;subfunção;10.304;Vigilância Sanitária;8141131,48;1262955548,42;0,64
+10;Saúde;demais_subfunções;FU10;Demais Subfunções;224354,12;1262955548,42;0,02
+10;Saúde;subfunção;10.306;Alimentação e Nutrição;77650,98;1262955548,42;0,01

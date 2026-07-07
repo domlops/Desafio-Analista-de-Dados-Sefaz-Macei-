@@ -1,7 +1,7 @@
 # Análise de despesas por função das capitais brasileiras
 
 Este repositório reúne a minha solução para um desafio técnico de estágio em
-análise de dados da Sefaz Maceió.
+análise de dados da SEFAZ-AL.
 
 A proposta do desafio era trabalhar com dados de despesas das capitais
 brasileiras, publicados no FINBRA/Siconfi, e comparar o que foi empenhado com o
@@ -16,6 +16,15 @@ com as tabelas e figuras principais.
 
 Os dados usados aqui vêm do relatório **Despesas por Função (Anexo I-E)**, no
 escopo de capitais, para os anos de **2020 a 2025**.
+
+Fonte dos dados: **FINBRA/Siconfi**, relatório **Despesas por Função (Anexo
+I-E)**, escopo **Capitais**. Os arquivos brutos usados na análise são os ZIPs
+fornecidos no desafio e mantidos em `dados_compactos/`.
+
+Ambiente usado no desenvolvimento:
+
+- Python **3.13.9**;
+- processamento e última geração dos artefatos em **07/07/2026**.
 
 A base final consolidada ficou com:
 
@@ -69,6 +78,7 @@ tamanhos muito diferentes apenas pelo valor total pode distorcer a leitura.
 │   ├── consolidar_dados.py
 │   ├── validar_dados.py
 │   └── gerar_outputs.py
+├── Makefile
 ├── README.md
 └── requirements.txt
 ```
@@ -111,6 +121,14 @@ Gere as tabelas e figuras finais:
 ```bash
 python scripts/gerar_outputs.py
 ```
+
+Também adicionei a opção de um comando único para reproduzir o pipeline principal:
+
+```bash
+make reproduzir PYTHON=.venv/bin/python
+```
+
+Esse comando executa extração, consolidação, validação e geração dos outputs.
 
 Os notebooks podem ser abertos com:
 
@@ -166,12 +184,37 @@ Alguns cuidados foram centrais para evitar conclusões erradas.
   fora das comparações principais.
 - **A coluna `Conta` mistura níveis diferentes.** Funções, subfunções, totais e
   linhas como `FUxx - Demais Subfunções` não podem ser somadas sem critério.
+- **Totais intraorçamentários foram separados.** As contas `Despesas Exceto
+Intraorçamentárias` e `Despesas Intraorçamentárias` são classificadas como
+  `total`. Elas não entram nas análises por função, porque somá-las junto com
+  funções ou subfunções poderia gerar dupla contagem.
 - **A análise principal usa `tipo_conta == "função"`.** Isso reduz o risco de
   dupla contagem.
 - **Valores per capita complementam os valores absolutos.** Eles ajudam a
   comparar capitais com populações muito diferentes.
 - **Taxa de execução não é sinônimo de qualidade.** Ela mostra a relação entre
   pago e empenhado, mas não explica sozinha por que a diferença aconteceu.
+- **Existem casos pontuais de taxa acima de 100%.** Na base por função,
+  encontrei 10 combinações de ano, capital e função em que o valor pago ficou
+  acima do empenhado. Tratei esses casos como sinais para revisão contextual,
+  não como erro automático, porque podem refletir ajustes contábeis, forma de
+  registro ou particularidades da declaração.
+
+## Dicionário curto da base
+
+| Coluna          | O que representa                                                                |
+| --------------- | ------------------------------------------------------------------------------- |
+| `ano`           | Exercício do arquivo FINBRA/Siconfi                                             |
+| `Instituição`   | Prefeitura responsável pela declaração                                          |
+| `Cod.IBGE`      | Código IBGE do município, usado para identificar a capital                      |
+| `UF`            | Unidade da Federação                                                            |
+| `População`     | População usada no arquivo do Siconfi                                           |
+| `Coluna`        | Estágio da despesa, como empenhada ou paga                                      |
+| `Conta`         | Texto original da função, subfunção ou total                                    |
+| `tipo_conta`    | Classificação criada no pipeline: função, subfunção, total ou demais subfunções |
+| `codigo_funcao` | Código da função orçamentária                                                   |
+| `nome_funcao`   | Nome da função orçamentária                                                     |
+| `Valor`         | Valor financeiro em reais                                                       |
 
 ## Indicadores usados
 
@@ -223,6 +266,9 @@ por isso, onde faria sentido investigar com mais contexto.
 Como o desafio é da Sefaz Maceió, aprofundei a leitura em Maceió, principalmente
 em Saúde e Educação.
 
+Para identificar Maceió nos filtros, usei o código IBGE **2704302**, em vez de
+depender apenas do texto do nome da prefeitura.
+
 Em **Saúde**, Maceió teve um resultado forte em 2024:
 
 - pagou **97,36%** do que empenhou;
@@ -244,6 +290,10 @@ em Educação, tanto na execução quanto no valor pago por habitante.
 Também olhei rapidamente as subfunções de Saúde e Educação em Maceió. Esse
 recorte entra como apoio à interpretação, não como foco principal da análise.
 
+Além desse recorte, gerei uma tabela de Maceió por **todas as funções em 2024**.
+Ela ajuda a verificar se Saúde e Educação são exceções ou se fazem parte de um
+comportamento mais geral da capital.
+
 Em 2024, as maiores concentrações do valor pago foram:
 
 | Função   | Principal subfunção paga em Maceió               | Participação no valor pago da função |
@@ -257,12 +307,13 @@ Em 2024, as maiores concentrações do valor pago foram:
 
 As tabelas finais estão em `outputs/tabelas/`:
 
-| Arquivo                                     | Conteúdo                                                       |
-| ------------------------------------------- | -------------------------------------------------------------- |
-| `ranking_capitais_2024.csv`                 | Ranking das capitais pela taxa de execução em 2024             |
-| `ranking_funcoes_2024.csv`                  | Ranking das funções pela taxa de execução em 2024              |
-| `maceio_saude_educacao_2020_2024.csv`       | Comparação de Maceió com a média e mediana das demais capitais |
-| `maceio_subfuncoes_saude_educacao_2024.csv` | Recorte de subfunções em Saúde e Educação para Maceió          |
+| Arquivo                                     | Conteúdo                                                                |
+| ------------------------------------------- | ----------------------------------------------------------------------- |
+| `ranking_capitais_2024.csv`                 | Ranking das capitais pela taxa de execução em 2024                      |
+| `ranking_funcoes_2024.csv`                  | Ranking das funções pela taxa de execução em 2024                       |
+| `maceio_saude_educacao_2020_2024.csv`       | Comparação de Maceió com a média e mediana das demais capitais          |
+| `maceio_funcoes_2024.csv`                   | Maceió por todas as funções em 2024, com rankings por taxa e per capita |
+| `maceio_subfuncoes_saude_educacao_2024.csv` | Recorte de subfunções em Saúde e Educação para Maceió                   |
 
 As figuras finais estão em `outputs/figuras/`:
 
@@ -291,3 +342,16 @@ Algumas limitações ficaram no radar durante a análise.
 Mesmo com essas limitações, o projeto já cumpre o objetivo central do desafio:
 extrair, tratar, validar e analisar os dados de forma reproduzível, mostrando
 com clareza onde Maceió se posiciona em relação às demais capitais.
+
+## Checagens esperadas
+
+Ao rodar `python scripts/validar_dados.py`, espero ver:
+
+- 50.334 linhas e 16 colunas;
+- anos de 2020 a 2025;
+- 26 capitais de 2020 a 2024;
+- 11 capitais em 2025, marcado como ano parcial;
+- tipos de conta esperados: `função`, `subfunção`, `demais_subfunções` e
+  `total`;
+- validação específica dos totais intra/exceto, para evitar dupla contagem;
+- nenhum caractere quebrado nas colunas textuais.
